@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MediaItem, getMovies, getTVShows } from '../services/tmdb';
+import { MediaItem, getMovies, getTVShows, MediaResponse } from '../services/tmdb';
 import MediaCard from './MediaCard';
+import Pagination from './Pagination';
 
 interface MediaListProps {
   selectedLanguage: string | null;
@@ -18,26 +19,31 @@ export default function MediaList({
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     async function fetchMedia() {
       try {
         setLoading(true);
-        let data: MediaItem[];
+        let response: MediaResponse;
         
         if (selectedMediaType === 'movie') {
-          data = await getMovies(
+          response = await getMovies(
             selectedLanguage || undefined,
-            selectedPlatform || undefined
+            selectedPlatform || undefined,
+            currentPage
           );
         } else {
-          data = await getTVShows(
+          response = await getTVShows(
             selectedLanguage || undefined,
-            selectedPlatform || undefined
+            selectedPlatform || undefined,
+            currentPage
           );
         }
         
-        setMedia(data);
+        setMedia(response.items);
+        setTotalPages(response.totalPages);
       } catch (err) {
         setError('Failed to load media content. Please try again later.');
         console.error('Error fetching media:', err);
@@ -47,7 +53,12 @@ export default function MediaList({
     }
 
     fetchMedia();
-  }, [selectedLanguage, selectedPlatform, selectedMediaType]);
+  }, [selectedLanguage, selectedPlatform, selectedMediaType, currentPage]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   if (loading) {
     return (
@@ -66,10 +77,17 @@ export default function MediaList({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-6">
-      {media.map((item) => (
-        <MediaCard key={`${item.media_type}-${item.id}`} media={item} />
-      ))}
+    <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-6">
+        {media.map((item) => (
+          <MediaCard key={`${item.media_type}-${item.id}`} media={item} />
+        ))}
+      </div>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+      />
     </div>
   );
 } 

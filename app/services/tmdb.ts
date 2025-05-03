@@ -65,6 +65,12 @@ export interface MediaItem {
   original_language: string;
 }
 
+export interface MediaResponse {
+  items: MediaItem[];
+  totalPages: number;
+  currentPage: number;
+}
+
 async function fetchWatchProviders(type: 'movie' | 'tv', id: number): Promise<WatchProvider[]> {
   const providersResponse = await fetch(
     `${TMDB_BASE_URL}/${type}/${id}/watch/providers?api_key=${TMDB_API_KEY}`
@@ -86,11 +92,12 @@ async function fetchWatchProviders(type: 'movie' | 'tv', id: number): Promise<Wa
 
 export async function getMovies(
   language?: string,
-  platformId?: number
-): Promise<MediaItem[]> {
+  platformId?: number,
+  page: number = 1
+): Promise<MediaResponse> {
   const watchProvidersString = INDIAN_WATCH_PROVIDERS.join('|');
   const response = await fetch(
-    `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&with_origin_country=IN&language=en-US&page=1&with_watch_providers=${watchProvidersString}&watch_region=IN&sort_by=primary_release_date.desc${language ? `&with_original_language=${language}` : ''}`
+    `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&with_origin_country=IN&language=en-US&page=${page}&with_watch_providers=${watchProvidersString}&watch_region=IN&sort_by=primary_release_date.desc${language ? `&with_original_language=${language}` : ''}`
   );
 
   if (!response.ok) {
@@ -100,7 +107,7 @@ export async function getMovies(
   const data = await response.json();
   const movies: MediaItem[] = [];
 
-  for (const movie of data.results.slice(0, 10)) {
+  for (const movie of data.results) {
     const watchProviders = await fetchWatchProviders('movie', movie.id);
 
     // If platform filter is active, only include movies available on that platform
@@ -121,16 +128,21 @@ export async function getMovies(
     });
   }
 
-  return movies;
+  return {
+    items: movies,
+    totalPages: Math.min(data.total_pages, 500), // TMDB API limits to 500 pages
+    currentPage: page
+  };
 }
 
 export async function getTVShows(
   language?: string,
-  platformId?: number
-): Promise<MediaItem[]> {
+  platformId?: number,
+  page: number = 1
+): Promise<MediaResponse> {
   const watchProvidersString = INDIAN_WATCH_PROVIDERS.join('|');
   const response = await fetch(
-    `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&with_origin_country=IN&language=en-US&page=1&with_watch_providers=${watchProvidersString}&watch_region=IN&sort_by=first_air_date.desc${language ? `&with_original_language=${language}` : ''}`
+    `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&with_origin_country=IN&language=en-US&page=${page}&with_watch_providers=${watchProvidersString}&watch_region=IN&sort_by=first_air_date.desc${language ? `&with_original_language=${language}` : ''}`
   );
 
   if (!response.ok) {
@@ -140,7 +152,7 @@ export async function getTVShows(
   const data = await response.json();
   const tvShows: MediaItem[] = [];
 
-  for (const show of data.results.slice(0, 10)) {
+  for (const show of data.results) {
     const watchProviders = await fetchWatchProviders('tv', show.id);
 
     // If platform filter is active, only include shows available on that platform
@@ -161,5 +173,9 @@ export async function getTVShows(
     });
   }
 
-  return tvShows;
+  return {
+    items: tvShows,
+    totalPages: Math.min(data.total_pages, 500), // TMDB API limits to 500 pages
+    currentPage: page
+  };
 } 
