@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MediaItem, getIndianMedia } from '../services/tmdb';
+import { MediaItem, getMovies, getTVShows } from '../services/tmdb';
 import MediaCard from './MediaCard';
 
 interface MediaListProps {
@@ -23,11 +23,20 @@ export default function MediaList({
     async function fetchMedia() {
       try {
         setLoading(true);
-        const data = await getIndianMedia(
-          selectedLanguage || undefined, 
-          selectedPlatform || undefined,
-          selectedMediaType === 'all' ? undefined : selectedMediaType
-        );
+        let data: MediaItem[];
+        
+        if (selectedMediaType === 'movie') {
+          data = await getMovies(
+            selectedLanguage || undefined,
+            selectedPlatform || undefined
+          );
+        } else {
+          data = await getTVShows(
+            selectedLanguage || undefined,
+            selectedPlatform || undefined
+          );
+        }
+        
         setMedia(data);
       } catch (err) {
         setError('Failed to load media content. Please try again later.');

@@ -45,6 +45,12 @@ export const PROVIDER_LOGOS: Record<number, string> = {
   2177: '/provider-logos/jiocinema.svg'
 };
 
+interface WatchProvider {
+  provider_id: number;
+  provider_name: string;
+  logo_path: string;
+}
+
 export interface MediaItem {
   id: number;
   title: string;
@@ -55,77 +61,105 @@ export interface MediaItem {
   first_air_date?: string;
   vote_average: number;
   media_type: 'movie' | 'tv';
-  watch_providers?: {
-    provider_id: number;
-    logo_path: string;
-    provider_name: string;
-  }[];
+  watch_providers: WatchProvider[];
   original_language: string;
 }
 
-export async function getIndianMedia(
-  language?: string, 
-  platformId?: number,
-  mediaType?: string
-): Promise<MediaItem[]> {
-  const mediaTypes = mediaType ? [mediaType] : ['movie', 'tv'];
-  const allMedia: MediaItem[] = [];
-  const watchProvidersString = INDIAN_WATCH_PROVIDERS.join('|');
+async function fetchWatchProviders(type: 'movie' | 'tv', id: number): Promise<WatchProvider[]> {
+  const providersResponse = await fetch(
+    `${TMDB_BASE_URL}/${type}/${id}/watch/providers?api_key=${TMDB_API_KEY}`
+  );
 
-  for (const type of mediaTypes) {
-    // Use different sort parameters for movies and TV shows
-    const sortBy = type === 'movie' 
-      ? 'primary_release_date.desc' 
-      : 'first_air_date.desc';
-    
-    const response = await fetch(
-      `${TMDB_BASE_URL}/discover/${type}?api_key=${TMDB_API_KEY}&with_origin_country=IN&language=en-US&page=1&with_watch_providers=${watchProvidersString}
-      &watch_region=IN&sort_by=${sortBy}${language ? `&with_original_language=${language}` : ''
-      }`
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${type} data`);
-    }
-
-    const data = await response.json();
-    const items = data.results.slice(0, 10);
-
-    for (const item of items) {
-      // Fetch watch providers for each item
-      const providersResponse = await fetch(
-        `${TMDB_BASE_URL}/${type}/${item.id}/watch/providers?api_key=${TMDB_API_KEY}`
-      );
-
-      if (providersResponse.ok) {
-        const providersData = await providersResponse.json();
-        const indiaProviders = providersData.results.IN?.flatrate || [];
-
-        // If platform filter is active, only include items available on that platform
-        if (platformId && !indiaProviders.some((provider: any) => provider.provider_id === platformId)) {
-          continue;
-        }
-
-        const watchProviders = indiaProviders.map((provider: any) => ({
-          provider_id: provider.provider_id,
-          provider_name: provider.provider_name,
-          logo_path: provider.logo_path,
-        }));
-
-        allMedia.push({
-          id: item.id,
-          title: item.title || item.name,
-          overview: item.overview,
-          poster_path: item.poster_path,
-          media_type: type as 'movie' | 'tv',
-          release_date: item.release_date || item.first_air_date,
-          vote_average: item.vote_average,
-          original_language: item.original_language,
-          watch_providers: watchProviders,
-        });
-      }
-    }
+  if (!providersResponse.ok) {
+    return [];
   }
 
-  return allMedia;
+  const providersData = await providersResponse.json();
+  const indiaProviders = providersData.results.IN?.flatrate || [];
+
+  return indiaProviders.map((provider: any) => ({
+    provider_id: provider.provider_id,
+    provider_name: provider.provider_name,
+    logo_path: provider.logo_path,
+  }));
+}
+
+export async function getMovies(
+  language?: string,
+  platformId?: number
+): Promise<MediaItem[]> {
+  const watchProvidersString = INDIAN_WATCH_PROVIDERS.join('|');
+  const response = await fetch(
+    `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&with_origin_country=IN&language=en-US&page=1&with_watch_providers=${watchProvidersString}&watch_region=IN&sort_by=primary_release_date.desc${language ? `&with_original_language=${language}` : ''}`
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch movies');
+  }
+
+  const data = await response.json();
+  const movies: MediaItem[] = [];
+
+  for (const movie of data.results.slice(0, 10)) {
+    const watchProviders = await fetchWatchProviders('movie', movie.id);
+
+    // If platform filter is active, only include movies available on that platform
+    if (platformId && !watchProviders.some(provider => provider.provider_id === platformId)) {
+      continue;
+    }
+
+    movies.push({
+      id: movie.id,
+      title: movie.title,
+      overview: movie.overview,
+      poster_path: movie.poster_path,
+      media_type: 'movie',
+      release_date: movie.release_date,
+      vote_average: movie.vote_average,
+      original_language: movie.original_language,
+      watch_providers: watchProviders,
+    });
+  }
+
+  return movies;
+}
+
+export async function getTVShows(
+  language?: string,
+  platformId?: number
+): Promise<MediaItem[]> {
+  const watchProvidersString = INDIAN_WATCH_PROVIDERS.join('|');
+  const response = await fetch(
+    `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&with_origin_country=IN&language=en-US&page=1&with_watch_providers=${watchProvidersString}&watch_region=IN&sort_by=first_air_date.desc${language ? `&with_original_language=${language}` : ''}`
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch TV shows');
+  }
+
+  const data = await response.json();
+  const tvShows: MediaItem[] = [];
+
+  for (const show of data.results.slice(0, 10)) {
+    const watchProviders = await fetchWatchProviders('tv', show.id);
+
+    // If platform filter is active, only include shows available on that platform
+    if (platformId && !watchProviders.some(provider => provider.provider_id === platformId)) {
+      continue;
+    }
+
+    tvShows.push({
+      id: show.id,
+      title: show.name,
+      overview: show.overview,
+      poster_path: show.poster_path,
+      media_type: 'tv',
+      release_date: show.first_air_date,
+      vote_average: show.vote_average,
+      original_language: show.original_language,
+      watch_providers: watchProviders,
+    });
+  }
+
+  return tvShows;
 } 
