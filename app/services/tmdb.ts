@@ -95,7 +95,7 @@ export async function getMovies(
   platformId?: number,
   page: number = 1
 ): Promise<MediaResponse> {
-  const watchProvidersString = INDIAN_WATCH_PROVIDERS.join('|');
+  const watchProvidersString = platformId ? platformId :INDIAN_WATCH_PROVIDERS.join('|');
   const response = await fetch(
     `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&with_origin_country=IN&language=en-US&page=${page}&with_watch_providers=${watchProvidersString}&watch_region=IN&sort_by=primary_release_date.desc${language ? `&with_original_language=${language}` : ''}`
   );
@@ -109,11 +109,6 @@ export async function getMovies(
 
   for (const movie of data.results) {
     const watchProviders = await fetchWatchProviders('movie', movie.id);
-
-    // If platform filter is active, only include movies available on that platform
-    if (platformId && !watchProviders.some(provider => provider.provider_id === platformId)) {
-      continue;
-    }
 
     movies.push({
       id: movie.id,
@@ -140,7 +135,7 @@ export async function getTVShows(
   platformId?: number,
   page: number = 1
 ): Promise<MediaResponse> {
-  const watchProvidersString = INDIAN_WATCH_PROVIDERS.join('|');
+  const watchProvidersString = platformId ? platformId :INDIAN_WATCH_PROVIDERS.join('|');
   const response = await fetch(
     `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&with_origin_country=IN&language=en-US&page=${page}&with_watch_providers=${watchProvidersString}&watch_region=IN&sort_by=first_air_date.desc${language ? `&with_original_language=${language}` : ''}`
   );
@@ -154,11 +149,6 @@ export async function getTVShows(
 
   for (const show of data.results) {
     const watchProviders = await fetchWatchProviders('tv', show.id);
-
-    // If platform filter is active, only include shows available on that platform
-    if (platformId && !watchProviders.some(provider => provider.provider_id === platformId)) {
-      continue;
-    }
 
     tvShows.push({
       id: show.id,
